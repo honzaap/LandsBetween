@@ -143,7 +143,7 @@ function setupPostProcessing(scene, camera, renderer) {
     composer.addPass(gtaoPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    composer.addPass(bloomPass);
+    // composer.addPass(bloomPass);
 
     const outputPass = new OutputPass();
     composer.addPass(outputPass);
@@ -305,20 +305,23 @@ function setupEnvironment(scene) {
         loader.load(`./assets/${tile}`, (gltf) => {
             scene.add(gltf.scene);
             setShadow(gltf.scene, false, true);
+            modifyMaterials(gltf.scene, scene);
         });
     }
 
     for (const prop of props) {
         loader.load(`./assets/${prop}`, (gltf) => {
             scene.add(gltf.scene);
-            setShadow(gltf.scene, true, false);
+            setShadow(gltf.scene, false, false);
+            modifyMaterials(gltf.scene, scene);
         });
     }
 
     for (const dungeon of legacyDungeons) {
         loader.load(`./assets/${dungeon}`, (gltf) => {
             scene.add(gltf.scene);
-            setShadow(gltf.scene, true, false);
+            setShadow(gltf.scene, false, false);
+            modifyMaterials(gltf.scene, scene);
         });
     }
 }
@@ -328,3 +331,24 @@ function render(scene, composer, bloomComposer) {
     composer.render();
 }
 
+function modifyMaterials(object, scene) {
+    if (!object.children) return;
+    for (const child of object.children) {
+
+        switch (child.material?.name) {
+            case "Erdtree Minor Leaves":
+                child.material.color = new THREE.Color(0xFFFEB6);
+                break;
+            case "Water":
+                console.log(child.material);
+                child.material.blending = THREE.AdditiveBlending;
+                child.material.opacity = 2;
+                child.material.color = new THREE.Color(0x2E86B4);
+                child.material.metalness = 0.65;
+                child.material.roughness = 0.25;
+                break;
+        }
+
+        modifyMaterials(child);
+    }
+}
