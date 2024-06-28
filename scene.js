@@ -12,14 +12,20 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-// Global GLTF loader
+// Global loaders
 const loader = new GLTFLoader();
-
-// Array of functions that are called in given order every frame
-const logicHandlers = [];
+const textureLoader = new THREE.TextureLoader();
 
 // Global GUI
 const gui = new GUI();
+
+// Global textures
+const envmap = textureLoader.load("/assets/envmap.png"); 
+envmap.mapping = THREE.EquirectangularReflectionMapping;
+envmap.colorSpace = THREE.SRGBColorSpace;
+
+// Global materials
+const water = new THREE.MeshStandardMaterial() 
 
 export function createScene() {
     // Create scene
@@ -27,8 +33,8 @@ export function createScene() {
     const camera = createCamera();
     const renderer = createRenderer(scene, camera);
 
+    setupMaterials();
     setupLighting(scene);
-
     setupEnvironment(scene);
 
     const controls = createControls(camera, renderer);
@@ -44,10 +50,6 @@ export function createScene() {
     function animate() {
         if(Date.now() >= timeTarget){
             const delta = clock.getDelta();
-
-            for(const handler of logicHandlers) {
-                handler({delta, scene});
-            }
 
             controls.update();
 
@@ -249,9 +251,10 @@ function setupLighting(scene) {
         x: 18,
         y: 40,
         z: 10,
+        color: 0xffedc7,
     };
 
-    const dirLight = new THREE.DirectionalLight(0xffffff,1);
+    const dirLight = new THREE.DirectionalLight(paramsD.color, 1);
     dirLight.castShadow = true;
     dirLight.shadow.radius = 25;
     dirLight.shadow.blurSamples = 25;
@@ -275,15 +278,16 @@ function setupLighting(scene) {
     dirLightGui.add(paramsD, "x", -80, 80).onChange(function(value) { dirLight.position.x = value; });
     dirLightGui.add(paramsD, "y", -80, 80).onChange(function(value) { dirLight.position.y = value; });
     dirLightGui.add(paramsD, "z", -80, 80).onChange(function(value) { dirLight.position.z = value; });
+    dirLightGui.addColor(paramsD, "color").onChange(function(value) { dirLight.color  = new THREE.Color(value); });
 
     const hemiLight = new THREE.HemisphereLight(0xe5e7ff, 0xd2b156, 1.75);
     hemiLight.frustumCulled = false;
     scene.add(hemiLight);
 
     const paramsH = {
-        sky: 0xe5e7ff,
-        ground: 0xd2b156,
-        intensity: 1.75
+        sky: 0x6c6e84,
+        ground: 0x23211a,
+        intensity: 7,
     };
 
     const lightGui = gui.addFolder("Hemisphere Light");
@@ -340,15 +344,35 @@ function modifyMaterials(object, scene) {
                 child.material.color = new THREE.Color(0xFFFEB6);
                 break;
             case "Water":
-                console.log(child.material);
-                child.material.blending = THREE.AdditiveBlending;
-                child.material.opacity = 2;
-                child.material.color = new THREE.Color(0x2E86B4);
-                child.material.metalness = 0.65;
-                child.material.roughness = 0.25;
+                child.material = water;
                 break;
         }
 
         modifyMaterials(child);
     }
+}
+
+function setupMaterials() {
+    water.envMap = envmap;
+    water.transparent = true;
+    water.depthWrite = true;
+    water.needsUpdate = true;
+
+    const paramsWater = {
+        opacity: 0.6,
+        color: 0x38deff,
+        metalness: 0.84,
+        roughness: 0.078,
+    };
+
+    water.opacity = paramsWater.opacity;
+    water.color = new THREE.Color(paramsWater.color);
+    water.metalness = paramsWater.metalness;
+    water.roughness = paramsWater.roughness;
+    
+    const waterFolder = gui.addFolder("water");
+    waterFolder.add(paramsWater, "opacity", 0.0, 3.0).onChange(function (value) { water.opacity = Number(value); });
+    waterFolder.addColor(paramsWater, "color").onChange(function(value) { water.color  = new THREE.Color(value); });
+    waterFolder.add(paramsWater, "metalness", 0.0, 1.0).onChange(function (value) { water.metalness = Number(value); });
+    waterFolder.add(paramsWater, "roughness", 0.0, 1.0).onChange(function (value) { water.roughness = Number(value); });
 }
