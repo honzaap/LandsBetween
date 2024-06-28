@@ -11,6 +11,8 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { INSTANCED } from "./constants";
+import Stats from "three/examples/jsm/libs/stats.module.js";
 
 // Global loaders
 const loader = new GLTFLoader();
@@ -18,6 +20,8 @@ const textureLoader = new THREE.TextureLoader();
 
 // Global GUI
 const gui = new GUI();
+const stats = new Stats();
+document.body.appendChild(stats.dom);
 
 // Global textures
 const envmap = textureLoader.load("/assets/envmap.png"); 
@@ -25,7 +29,10 @@ envmap.mapping = THREE.EquirectangularReflectionMapping;
 envmap.colorSpace = THREE.SRGBColorSpace;
 
 // Global materials
-const water = new THREE.MeshStandardMaterial() 
+const water = new THREE.MeshPhysicalMaterial();
+const minorErdtree = new THREE.MeshStandardMaterial();
+const fire = new THREE.MeshStandardMaterial();
+const grace = new THREE.MeshStandardMaterial();
 
 export function createScene() {
     // Create scene
@@ -36,6 +43,7 @@ export function createScene() {
     setupMaterials();
     setupLighting(scene);
     setupEnvironment(scene);
+    setupInstancing(scene);
 
     const controls = createControls(camera, renderer);
 
@@ -48,6 +56,7 @@ export function createScene() {
 
     // Animation loop
     function animate() {
+        stats.begin();
         if(Date.now() >= timeTarget){
             const delta = clock.getDelta();
 
@@ -61,6 +70,8 @@ export function createScene() {
                 timeTarget = Date.now();
             }
         }
+        stats.end();
+        
         requestAnimationFrame(animate);
     }
     animate();
@@ -145,7 +156,7 @@ function setupPostProcessing(scene, camera, renderer) {
     composer.addPass(gtaoPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    // composer.addPass(bloomPass);
+    composer.addPass(bloomPass);
 
     const outputPass = new OutputPass();
     composer.addPass(outputPass);
@@ -251,7 +262,7 @@ function setupLighting(scene) {
         x: 18,
         y: 40,
         z: 10,
-        color: 0xffedc7,
+        color: 0xffffff,
     };
 
     const dirLight = new THREE.DirectionalLight(paramsD.color, 1);
@@ -285,10 +296,14 @@ function setupLighting(scene) {
     scene.add(hemiLight);
 
     const paramsH = {
-        sky: 0x6c6e84,
+        sky: 0x808299,
         ground: 0x23211a,
         intensity: 7,
     };
+
+    hemiLight.color = new THREE.Color(paramsH.sky);
+    hemiLight.groundColor = new THREE.Color(paramsH.ground);
+    hemiLight.intensity = paramsH.intensity;
 
     const lightGui = gui.addFolder("Hemisphere Light");
     lightGui.close();
@@ -300,9 +315,25 @@ function setupLighting(scene) {
 // Create and setup anything environment-related
 function setupEnvironment(scene) {
     scene.background = new THREE.Color(0x50638e);
-    //scene.fog = new THREE.Fog(scene.background, 40, 65);
+    scene.fog = new THREE.Fog(0xb0b0b0, 90, 140);
+
+    const sceneGui = gui.addFolder("Scene");
+    sceneGui.close();
+
+    const params = {
+        background: 0x50638e,
+        fog: 0xb0b0b0,
+        start: 90,
+        end: 140,
+    }
+
+    sceneGui.addColor(params, "background").onChange(function(value) { scene.background  = new THREE.Color(value); });
+    sceneGui.addColor(params, "fog").onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
+    sceneGui.add(params, "start", 50, 250).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
+    sceneGui.add(params, "end", 80, 350).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
+
     const tiles = ["tiles_limgrave.glb", "tiles_weeping.glb", "tiles_caelid.glb", "tiles_liurnia.glb", "tiles_global.glb"];
-    const props = ["props_limgrave.glb", "props_weeping.glb", "props_caelid.glb", "props_liurnia.glb"];
+    const props = []//["props_limgrave.glb", "props_weeping.glb", "props_caelid.glb", "props_liurnia.glb"];
     const legacyDungeons = ["legacy_dungeons.glb"];
 
     for (const tile of tiles) {
@@ -338,13 +369,18 @@ function render(scene, composer, bloomComposer) {
 function modifyMaterials(object, scene) {
     if (!object.children) return;
     for (const child of object.children) {
-
         switch (child.material?.name) {
             case "Erdtree Minor Leaves":
-                child.material.color = new THREE.Color(0xFFFEB6);
+                child.material = minorErdtree;
                 break;
             case "Water":
-                child.material = water;
+                child.material = water; // todo - scrap physicalmaterial water, too expensive
+                break;
+            case "Fire":
+                child.material = fire;
+                break;
+            case "Grace Light":
+                child.material = grace;
                 break;
         }
 
@@ -357,22 +393,95 @@ function setupMaterials() {
     water.transparent = true;
     water.depthWrite = true;
     water.needsUpdate = true;
+    water.specularIntensity = 0;
+
+    // Remove direct specular
+    water.onBeforeCompile = shader => {
+        shader.fragmentShader = 
+          shader.fragmentShader.replace(
+            'vec3 totalSpecular = reflectedLight.directSpecular + reflectedLight.indirectSpecular;',
+            'vec3 totalSpecular = reflectedLight.indirectSpecular;'
+          )
+      };
 
     const paramsWater = {
         opacity: 0.6,
-        color: 0x38deff,
-        metalness: 0.84,
+        color: 0x46d3dd,
+        metalness: 0.853,
         roughness: 0.078,
+        anisotropy: 0.0,
+        attenuationDistance: 150,
+        clearcoat: 0.7,
+        clearcoatRoughness: 1.0,
+        dispersion: 0.361,
+        ior: 1.0,
+        iridescence: 0.0,
+        sheen: 0.0,
+        thickness: 0.0,
+        transmission: 0.14,
+        reflectivity: 0.0,
     };
 
     water.opacity = paramsWater.opacity;
     water.color = new THREE.Color(paramsWater.color);
     water.metalness = paramsWater.metalness;
     water.roughness = paramsWater.roughness;
+    water.anisotropy = paramsWater.anisotropy;
+    water.attenuationDistance = paramsWater.attenuationDistance;
+    water.clearcoat = paramsWater.clearcoat;
+    water.clearcoatRoughness = paramsWater.clearcoatRoughness;
+    water.dispersion = paramsWater.dispersion;
+    water.ior = paramsWater.ior;
+    water.iridescence = paramsWater.iridescence;
+    water.sheen = paramsWater.sheen;
+    water.thickness = paramsWater.thickness;
+    water.transmission = paramsWater.transmission;
+    water.reflectivity = paramsWater.reflectivity;
     
     const waterFolder = gui.addFolder("water");
     waterFolder.add(paramsWater, "opacity", 0.0, 3.0).onChange(function (value) { water.opacity = Number(value); });
     waterFolder.addColor(paramsWater, "color").onChange(function(value) { water.color  = new THREE.Color(value); });
     waterFolder.add(paramsWater, "metalness", 0.0, 1.0).onChange(function (value) { water.metalness = Number(value); });
     waterFolder.add(paramsWater, "roughness", 0.0, 1.0).onChange(function (value) { water.roughness = Number(value); });
+    waterFolder.add(paramsWater, "anisotropy", 0.0, 5.0).onChange(function (value) { water.anisotropy = Number(value); });
+    waterFolder.add(paramsWater, "attenuationDistance", 0.0, 150.0).onChange(function (value) { water.attenuationDistance = Number(value); });
+    waterFolder.add(paramsWater, "clearcoat", 0.0, 1.0).onChange(function (value) { water.clearcoat = Number(value); });
+    waterFolder.add(paramsWater, "clearcoatRoughness", 0.0, 1.0).onChange(function (value) { water.clearcoatRoughness = Number(value); });
+    waterFolder.add(paramsWater, "dispersion", 0.0, 1.0).onChange(function (value) { water.dispersion = Number(value); });
+    waterFolder.add(paramsWater, "ior", 1.0, 2.333).onChange(function (value) { water.ior = Number(value); });
+    waterFolder.add(paramsWater, "iridescence", 0.0, 1.0).onChange(function (value) { water.iridescence = Number(value); });
+    waterFolder.add(paramsWater, "sheen", 0.0, 1.0).onChange(function (value) { water.sheen = Number(value); });
+    waterFolder.add(paramsWater, "thickness", 0.0, 100.0).onChange(function (value) { water.thickness = Number(value); });
+    waterFolder.add(paramsWater, "transmission", 0.0, 1.0).onChange(function (value) { water.transmission = Number(value); });
+    waterFolder.add(paramsWater, "reflectivity", 0.0, 1.0).onChange(function (value) { water.reflectivity = Number(value); });
+
+    minorErdtree.color = new THREE.Color(0xFFFEB6);
+    minorErdtree.emissive = new THREE.Color(0xffa51d);
+    minorErdtree.emissiveIntensity = 2;
+
+    fire.color = new THREE.Color(0xe76717);
+    fire.emissive = new THREE.Color(0xff9627);
+    fire.emissiveIntensity = 6;
+
+    grace.color = new THREE.Color(0xfad57b);
+    grace.emissive = new THREE.Color(0xe7b962);
+    grace.emissiveIntensity = 2;
+}
+
+function setupInstancing(scene) {
+    for (const instance_name of INSTANCED) {
+        loader.load(`/assets/instanced/${instance_name}.glb`, (instance) => {
+            loader.load(`/assets/instanced_data/${instance_name}.glb`, (data) => {
+                const mesh = instance.scene.children[0];
+                const transforms = data.scene.children;
+                const iMesh = new THREE.InstancedMesh(mesh.geometry, mesh.material, transforms.length);
+
+                for (let i = 0; i < transforms.length; i++) {
+                    iMesh.setMatrixAt(i, transforms[i].matrixWorld);
+                }
+
+                scene.add(iMesh);
+            });
+        });
+    }
 }
