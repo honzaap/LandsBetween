@@ -34,6 +34,9 @@ const minorErdtree = new THREE.MeshStandardMaterial();
 const fire = new THREE.MeshStandardMaterial();
 const grace = new THREE.MeshStandardMaterial();
 
+const moveDirection = new THREE.Vector3();
+const raycaster = new THREE.Raycaster()
+
 export function createScene() {
     // Create scene
     const scene = new THREE.Scene();
@@ -43,24 +46,46 @@ export function createScene() {
     setupMaterials();
     setupLighting(scene);
     setupEnvironment(scene);
-    setupInstancing(scene);
+    // setupInstancing(scene);
 
     const controls = createControls(camera, renderer);
 
     const composer = setupPostProcessing(scene, camera, renderer);
+
+    renderer.domElement.addEventListener("dblclick", e => {
+        onDoubleClick(e, camera, scene, controls, renderer);
+    });
 
     const clock = new THREE.Clock();
 
     const dt = 1000 / 60;
     let timeTarget = 0;
 
+    const velocity = new THREE.Vector3();
+    const desiredVelocity = new THREE.Vector3();
+    let factor = 0;
+    let move = true;
     // Animation loop
     function animate() {
         stats.begin();
         if(Date.now() >= timeTarget){
             const delta = clock.getDelta();
 
-            controls.update();
+            desiredVelocity.copy(moveDirection);
+            desiredVelocity.applyEuler(camera.rotation);
+            desiredVelocity.multiplyScalar(delta * 15);
+
+            if (move !== (moveDirection.length() === 0)) {
+                factor = 0;
+            }
+
+            factor = Math.min(factor + delta * 3, 1);
+
+            velocity.lerp(desiredVelocity, factor);
+
+            controls.update(delta);
+            controls.target.add(velocity);
+            camera.position.add(velocity);
 
             // renderer.render(scene, camera);
             composer.render();
@@ -69,6 +94,7 @@ export function createScene() {
             if(Date.now() >= timeTarget){
                 timeTarget = Date.now();
             }
+            move = moveDirection.length() === 0;
         }
         stats.end();
         
@@ -103,6 +129,61 @@ function createCamera() {
 // Create and configure camera and sword controls
 function createControls(camera, renderer) {
     const controls = new OrbitControls(camera, renderer.domElement);
+    
+    const params = {
+        enableDamping: true,
+        dampingFactor: 0.3,
+        minDistance: 0,
+        maxDistance: 0.01,
+        panSpeed: 1,
+        rotateSpeed: 1,
+    }
+
+    controls.enablePan = false;
+
+    controls.enableDamping = params.enableDamping;
+    controls.dampingFactor = params.dampingFactor;
+    controls.minDistance = params.minDistance;
+    controls.maxDistance = params.maxDistance;
+    controls.panSpeed = params.panSpeed;
+    controls.rotateSpeed = params.rotateSpeed;
+
+    const controlsGui = gui.addFolder("Controls");
+    controlsGui.add(params, "enableDamping").onChange((value) => controls.enableDamping = value);
+    controlsGui.add(params, "dampingFactor", 0.0, 2).onChange((value) => controls.dampingFactor = value);
+    controlsGui.add(params, "minDistance", 0, 5).onChange((value) => controls.minDistance = value);
+    controlsGui.add(params, "maxDistance", 30, 250).onChange((value) => controls.maxDistance = value);
+    controlsGui.add(params, "panSpeed", 0.5, 5).onChange((value) => controls.panSpeed = value);
+    controlsGui.add(params, "rotateSpeed", 0.5, 5).onChange((value) => controls.rotateSpeed = value);
+
+    window.addEventListener("keydown", e => {
+        if (e.key === "w" || e.key === "ArrowUp") {
+            moveDirection.z = -1;
+        }
+        else if (e.key === "s" || e.key === "ArrowDown") {
+            moveDirection.z = 1;
+        }
+        else if (e.key === "a" || e.key === "ArrowLeft") {
+            moveDirection.x = -1;
+        }
+        else if (e.key === "d" || e.key === "ArrowRight") {
+            moveDirection.x = 1;
+        }
+    });
+    window.addEventListener("keyup", e => {
+        if (e.key === "w" || e.key === "ArrowUp") {
+            moveDirection.z = 0;
+        }
+        else if (e.key === "s" || e.key === "ArrowDown") {
+            moveDirection.z = 0;
+        }
+        else if (e.key === "a" || e.key === "ArrowLeft") {
+            moveDirection.x = 0;
+        }
+        else if (e.key === "d" || e.key === "ArrowRight") {
+            moveDirection.x = 0;
+        }
+    });
 
     return controls;
 }
@@ -230,29 +311,6 @@ function setShadow(obj, cast = false, receive = false) {
     }
 }
 
-// function generateLightOnEmission(obj) {
-//     if(obj.material?.emissiveIntensity > 1) {
-//         obj.material.emissiveIntensity = 1;
-//         const pointLight = new THREE.PointLight(0xffffff, 7.2, 0, 2);
-//         pointLight.position.y = -1.4;
-//         pointLight.castShadow = false;
-//         obj.add(pointLight); // TODO: Causes LAG?
-//     }
-//     if(obj.material?.opacity < 1) {
-//         obj.castShadow = false;
-//         obj.receiveShadow = false;
-//         obj.material.emissive = new THREE.Color(0xbeb979);
-//         obj.material.emissiveIntensity = 0.8;
-//         obj.material.opacity = 1;
-//         obj.material.depthWrite = false;
-//     }
-//     if (obj?.children != null) {
-//         for (const child of obj.children) {
-//             generateLightOnEmission(child);
-//         }
-//     }
-// }
-
 // Create and configure lighting in the scene
 function setupLighting(scene) {
     const ambLight = new THREE.AmbientLight(0xffffff, 1);
@@ -269,9 +327,9 @@ function setupLighting(scene) {
     dirLight.castShadow = true;
     dirLight.shadow.radius = 25;
     dirLight.shadow.blurSamples = 25;
-    dirLight.shadow.bias = 0;
-    dirLight.shadow.mapSize.width = 2048; // Will need to change this to fit the whole map once it"s finished
-    dirLight.shadow.mapSize.height = 2048; // Will need to change this to fit the whole map once it"s finished
+    dirLight.shadow.bias = -.0001;
+    dirLight.shadow.mapSize.width = 4096; // Will need to change this to fit the whole map once it"s finished
+    dirLight.shadow.mapSize.height = 4096; // Will need to change this to fit the whole map once it"s finished
     dirLight.position.set(18, 40, 10);
     dirLight.target.position.set(-20, 0, -20);
     dirLight.shadow.camera.near = 0.2;       
@@ -296,8 +354,8 @@ function setupLighting(scene) {
     scene.add(hemiLight);
 
     const paramsH = {
-        sky: 0x808299,
-        ground: 0x23211a,
+        sky: 0x7c7a90,
+        ground: 0x5f5b4f,
         intensity: 7,
     };
 
@@ -315,7 +373,7 @@ function setupLighting(scene) {
 // Create and setup anything environment-related
 function setupEnvironment(scene) {
     scene.background = new THREE.Color(0x50638e);
-    scene.fog = new THREE.Fog(0xb0b0b0, 90, 140);
+    scene.fog = new THREE.Fog(0x97aaaf, 90, 140);
 
     const sceneGui = gui.addFolder("Scene");
     sceneGui.close();
@@ -333,7 +391,7 @@ function setupEnvironment(scene) {
     sceneGui.add(params, "end", 80, 350).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
 
     const tiles = ["tiles_limgrave.glb", "tiles_weeping.glb", "tiles_caelid.glb", "tiles_liurnia.glb", "tiles_global.glb"];
-    const props = []//["props_limgrave.glb", "props_weeping.glb", "props_caelid.glb", "props_liurnia.glb"];
+    const props = ["props_limgrave.glb", "props_weeping.glb", "props_caelid.glb", "props_liurnia.glb"];
     const legacyDungeons = ["legacy_dungeons.glb"];
 
     for (const tile of tiles) {
@@ -347,7 +405,7 @@ function setupEnvironment(scene) {
     for (const prop of props) {
         loader.load(`./assets/${prop}`, (gltf) => {
             scene.add(gltf.scene);
-            setShadow(gltf.scene, false, false);
+            setShadow(gltf.scene, true, false);
             modifyMaterials(gltf.scene, scene);
         });
     }
@@ -355,7 +413,7 @@ function setupEnvironment(scene) {
     for (const dungeon of legacyDungeons) {
         loader.load(`./assets/${dungeon}`, (gltf) => {
             scene.add(gltf.scene);
-            setShadow(gltf.scene, false, false);
+            setShadow(gltf.scene, true, false);
             modifyMaterials(gltf.scene, scene);
         });
     }
@@ -374,6 +432,8 @@ function modifyMaterials(object, scene) {
                 child.material = minorErdtree;
                 break;
             case "Water":
+                child.receiveShadow = false;
+                child.castShadow = false;
                 child.material = water; // todo - scrap physicalmaterial water, too expensive
                 break;
             case "Fire":
@@ -408,7 +468,7 @@ function setupMaterials() {
         opacity: 0.6,
         color: 0x46d3dd,
         metalness: 0.853,
-        roughness: 0.078,
+        roughness: 0.11,
         anisotropy: 0.0,
         attenuationDistance: 150,
         clearcoat: 0.7,
@@ -482,6 +542,51 @@ function setupInstancing(scene) {
 
                 scene.add(iMesh);
             });
+        });
+    }
+}
+
+function onDoubleClick(event, camera, scene, controls, renderer) {
+    const mouse = new THREE.Vector2();
+    mouse.set(
+        (event.clientX / renderer.domElement.clientWidth) * 2 - 1,
+        -(event.clientY / renderer.domElement.clientHeight) * 2 + 1
+    );
+    raycaster.setFromCamera(mouse, camera);
+    
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    if (intersects.length > 0) {
+        const targetPosition = intersects[0].point;
+        targetPosition.lerp(camera.position, 0.2);
+    
+        const direction = new THREE.Vector3();
+        direction.subVectors(targetPosition, camera.position).normalize();
+    
+        const targetQuaternion = new THREE.Quaternion();
+        targetQuaternion.setFromUnitVectors(camera.getWorldDirection(new THREE.Vector3()), direction);
+    
+        gsap.to(camera.quaternion, {
+            duration: 0.75,
+            x: targetQuaternion.x,
+            y: targetQuaternion.y,
+            z: targetQuaternion.z,
+            w: targetQuaternion.w,
+            ease: "power1.inOut",
+            onUpdate: function () {
+                camera.quaternion.normalize();
+            }
+        });
+    
+        gsap.to(controls.target, {
+            duration: 1.35,
+            x: targetPosition.x,
+            y: targetPosition.y,
+            z: targetPosition.z,
+            ease: "power1.inOut",
+            onUpdate: function () {
+                controls.update();
+            }
         });
     }
 }
