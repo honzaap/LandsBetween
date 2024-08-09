@@ -29,7 +29,6 @@ envmap.mapping = THREE.EquirectangularReflectionMapping;
 envmap.colorSpace = THREE.SRGBColorSpace;
 
 // Global materials
-const water = new THREE.MeshPhysicalMaterial();
 const minorErdtree = new THREE.MeshStandardMaterial();
 const fire = new THREE.MeshStandardMaterial();
 const grace = new THREE.MeshStandardMaterial();
@@ -434,7 +433,7 @@ function modifyMaterials(object, scene) {
             case "Water":
                 child.receiveShadow = false;
                 child.castShadow = false;
-                child.material = water; // todo - scrap physicalmaterial water, too expensive
+                child.material = water;
                 break;
             case "Fire":
                 child.material = fire;
