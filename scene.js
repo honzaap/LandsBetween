@@ -11,11 +11,17 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { INSTANCED } from "./constants";
+import { INSTANCED, TILES } from "./constants";
 import Stats from "three/examples/jsm/libs/stats.module.js";
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 // Global loaders
 const loader = new GLTFLoader();
+const draco = new DRACOLoader();
+draco.setDecoderPath( '/draco/' );
+draco.preload();
+loader.setDRACOLoader(draco);
+
 const textureLoader = new THREE.TextureLoader();
 
 // Global GUI
@@ -29,6 +35,7 @@ envmap.mapping = THREE.EquirectangularReflectionMapping;
 envmap.colorSpace = THREE.SRGBColorSpace;
 
 // Global materials
+const water = new THREE.MeshStandardMaterial();
 const minorErdtree = new THREE.MeshStandardMaterial();
 const fire = new THREE.MeshStandardMaterial();
 const grace = new THREE.MeshStandardMaterial();
@@ -42,10 +49,12 @@ export function createScene() {
     const camera = createCamera();
     const renderer = createRenderer(scene, camera);
 
+    renderer.info.autoReset = false;
+
     setupMaterials();
     setupLighting(scene);
     setupEnvironment(scene);
-    // setupInstancing(scene);
+    setupInstancing(scene);
 
     const controls = createControls(camera, renderer);
 
@@ -95,8 +104,9 @@ export function createScene() {
             }
             move = moveDirection.length() === 0;
         }
+        // console.log(renderer.info.render.calls);
         stats.end();
-        
+        renderer.info.reset()
         requestAnimationFrame(animate);
     }
     animate();
@@ -233,10 +243,10 @@ function setupPostProcessing(scene, camera, renderer) {
 
     const gtaoPass = new GTAOPass(scene, camera, width, height);
     gtaoPass.output = GTAOPass.OUTPUT.Default;
-    composer.addPass(gtaoPass);
+    // composer.addPass(gtaoPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    composer.addPass(bloomPass);
+    // composer.addPass(bloomPass);
 
     const outputPass = new OutputPass();
     composer.addPass(outputPass);
@@ -389,33 +399,32 @@ function setupEnvironment(scene) {
     sceneGui.add(params, "start", 50, 250).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
     sceneGui.add(params, "end", 80, 350).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
 
-    const tiles = ["tiles_limgrave.glb", "tiles_weeping.glb", "tiles_caelid.glb", "tiles_liurnia.glb", "tiles_global.glb"];
     const props = ["props_limgrave.glb", "props_weeping.glb", "props_caelid.glb", "props_liurnia.glb"];
     const legacyDungeons = ["legacy_dungeons.glb"];
 
-    for (const tile of tiles) {
-        loader.load(`./assets/${tile}`, (gltf) => {
+    for (const tile of TILES) {
+        loader.load(`./assets/${tile}.glb`, (gltf) => {
             scene.add(gltf.scene);
             setShadow(gltf.scene, false, true);
             modifyMaterials(gltf.scene, scene);
         });
     }
 
-    for (const prop of props) {
-        loader.load(`./assets/${prop}`, (gltf) => {
-            scene.add(gltf.scene);
-            setShadow(gltf.scene, true, false);
-            modifyMaterials(gltf.scene, scene);
-        });
-    }
+    // for (const prop of props) {
+    //     loader.load(`./assets/${prop}`, (gltf) => {
+    //         scene.add(gltf.scene);
+    //         setShadow(gltf.scene, true, false);
+    //         modifyMaterials(gltf.scene, scene);
+    //     });
+    // }
 
-    for (const dungeon of legacyDungeons) {
-        loader.load(`./assets/${dungeon}`, (gltf) => {
-            scene.add(gltf.scene);
-            setShadow(gltf.scene, true, false);
-            modifyMaterials(gltf.scene, scene);
-        });
-    }
+    // for (const dungeon of legacyDungeons) {
+    //     loader.load(`./assets/${dungeon}`, (gltf) => {
+    //         scene.add(gltf.scene);
+    //         setShadow(gltf.scene, true, false);
+    //         modifyMaterials(gltf.scene, scene);
+    //     });
+    // }
 }
 
 // Render the scene
@@ -485,17 +494,17 @@ function setupMaterials() {
     water.color = new THREE.Color(paramsWater.color);
     water.metalness = paramsWater.metalness;
     water.roughness = paramsWater.roughness;
-    water.anisotropy = paramsWater.anisotropy;
-    water.attenuationDistance = paramsWater.attenuationDistance;
-    water.clearcoat = paramsWater.clearcoat;
-    water.clearcoatRoughness = paramsWater.clearcoatRoughness;
-    water.dispersion = paramsWater.dispersion;
-    water.ior = paramsWater.ior;
-    water.iridescence = paramsWater.iridescence;
-    water.sheen = paramsWater.sheen;
-    water.thickness = paramsWater.thickness;
-    water.transmission = paramsWater.transmission;
-    water.reflectivity = paramsWater.reflectivity;
+    // water.anisotropy = paramsWater.anisotropy;
+    // water.attenuationDistance = paramsWater.attenuationDistance;
+    // water.clearcoat = paramsWater.clearcoat;
+    // water.clearcoatRoughness = paramsWater.clearcoatRoughness;
+    // water.dispersion = paramsWater.dispersion;
+    // water.ior = paramsWater.ior;
+    // water.iridescence = paramsWater.iridescence;
+    // water.sheen = paramsWater.sheen;
+    // water.thickness = paramsWater.thickness;
+    // water.transmission = paramsWater.transmission;
+    // water.reflectivity = paramsWater.reflectivity;
     
     const waterFolder = gui.addFolder("water");
     waterFolder.add(paramsWater, "opacity", 0.0, 3.0).onChange(function (value) { water.opacity = Number(value); });
@@ -534,11 +543,14 @@ function setupInstancing(scene) {
                 const mesh = instance.scene.children[0];
                 const transforms = data.scene.children;
                 const iMesh = new THREE.InstancedMesh(mesh.geometry, mesh.material, transforms.length);
-
+                if (instance_name === "minor_erdtree") {
+                    console.log(mesh)
+                }
+                
                 for (let i = 0; i < transforms.length; i++) {
                     iMesh.setMatrixAt(i, transforms[i].matrixWorld);
                 }
-
+                
                 scene.add(iMesh);
             });
         });
