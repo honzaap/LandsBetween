@@ -243,7 +243,7 @@ function setupPostProcessing(scene, camera, renderer) {
 
     const gtaoPass = new GTAOPass(scene, camera, width, height);
     gtaoPass.output = GTAOPass.OUTPUT.Default;
-    // composer.addPass(gtaoPass);
+    composer.addPass(gtaoPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
     // composer.addPass(bloomPass);
@@ -543,9 +543,6 @@ function setupInstancing(scene) {
                 const mesh = instance.scene.children[0];
                 const transforms = data.scene.children;
                 const iMesh = new THREE.InstancedMesh(mesh.geometry, mesh.material, transforms.length);
-                if (instance_name === "minor_erdtree") {
-                    console.log(mesh)
-                }
                 
                 for (let i = 0; i < transforms.length; i++) {
                     iMesh.setMatrixAt(i, transforms[i].matrixWorld);

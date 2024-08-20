@@ -1,5 +1,5 @@
 export const TILES = [
-    // "map",
+    "map5",
     // "tiles_limgrave", "tiles_weeping", "tiles_caelid", "tiles_liurnia", "tiles_global"
 ];
 
@@ -12,8 +12,11 @@ export const INSTANCED = [
     "gelmir_rock_1", "gelmir_rock_2", "grace", "gravestone", "haligtree_tower",
     "hangman_1", "hangman_2", "hangman_3", "hangman_4", "hangman_5", 
     "hero_grave", "map", "mausoleum", "mttops_rock_1", "mttops_rock_2", "mttops_root_1", "mttops_root_2",
-    "pot", "spikes", "telescope",
-    "tree_dead",
+    "pot", "spikes", "telescope", "mage_tower", "chest", "teleport", 
+    "tent_beige", "tent_red", "tent_blue", "tent_yellow", 
+    "banner", "skull", "azula_stone", 
+    "tree_dead", "flower_slope", "windmill", "leyndell_pot", "church", 
+    "building_1", "building_2", "building_3", "building_4", "building_5", 
     "tree_conifer_green_1", "tree_conifer_green_2", "tree_conifer_green_3", 
     "tree_conifer_orange_1", "tree_conifer_orange_2", "tree_conifer_orange_3", 
     "tree_conifer_white_1", "tree_conifer_white_2", "tree_conifer_white_3", 
