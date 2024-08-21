@@ -65,9 +65,17 @@ export function createScene() {
     });
 
     const clock = new THREE.Clock();
+    const clock2 = new THREE.Clock();
 
     const dt = 1000 / 60;
     let timeTarget = 0;
+
+    let frameTimes = 0;
+    let frames = 0;
+    let loaded = false;
+    setTimeout(() => {
+        loaded = true;
+    }, 350);
 
     const velocity = new THREE.Vector3();
     const desiredVelocity = new THREE.Vector3();
@@ -104,6 +112,20 @@ export function createScene() {
             }
             move = moveDirection.length() === 0;
         }
+
+        const delta = clock2.getDelta();
+        if (frames < 100 && loaded) {
+            frames++;
+            frameTimes += delta;
+        
+            if (frames >= 100) {
+                renderer.shadowMap.enabled = false;
+                if (frameTimes / frames > 0.025) { // less than 40 fps average
+                    lowerAOPass();
+                }
+            }
+        }
+
         // console.log(renderer.info.render.calls);
         stats.end();
         renderer.info.reset()
@@ -129,8 +151,6 @@ function createCamera() {
         0.1,
         400,
    );
-    camera.position.set(5, 5, 5);
-    camera.lookAt(0, 0, 0);
 
     return camera;
 }
@@ -138,6 +158,9 @@ function createCamera() {
 // Create and configure camera and sword controls
 function createControls(camera, renderer) {
     const controls = new OrbitControls(camera, renderer.domElement);
+    camera.position.set(5.1, 22.1, 22.1);
+    controls.target.set(5, 22, 22);
+    controls.update();
     
     const params = {
         enableDamping: true,
@@ -164,6 +187,7 @@ function createControls(camera, renderer) {
     controlsGui.add(params, "maxDistance", 30, 250).onChange((value) => controls.maxDistance = value);
     controlsGui.add(params, "panSpeed", 0.5, 5).onChange((value) => controls.panSpeed = value);
     controlsGui.add(params, "rotateSpeed", 0.5, 5).onChange((value) => controls.rotateSpeed = value);
+    controlsGui.close();
 
     window.addEventListener("keydown", e => {
         if (e.key === "w" || e.key === "ArrowUp") {
@@ -218,7 +242,7 @@ function createRenderer(scene, camera) {
     renderer.shadowMap.autoUpdate = true; //?
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.LinearToneMapping;
-    renderer.setPixelRatio(Math.max(window.devicePixelRatio, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.toneMappingExposure = 1.16;
     renderer.setClearColor(0x000000);
 
@@ -227,9 +251,11 @@ function createRenderer(scene, camera) {
 
 // Set"s the renderers size to current window size
 function resizeRenderer(renderer) {
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
+
+let lowerAOPass = () => {};
 
 // Configure postprocessing and return composer
 function setupPostProcessing(scene, camera, renderer) {
@@ -246,7 +272,7 @@ function setupPostProcessing(scene, camera, renderer) {
     composer.addPass(gtaoPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    // composer.addPass(bloomPass);
+    composer.addPass(bloomPass);
 
     const outputPass = new OutputPass();
     composer.addPass(outputPass);
@@ -267,8 +293,8 @@ function setupPostProcessing(scene, camera, renderer) {
         normalPhi: 3.,
         radius: 2.,
         radiusExponent: 1.,
-        rings: 2.,
-        samples: 16,
+        rings: 1.,
+        samples: 2,
     };
     const aoGui = gui.addFolder("Ambient Occlusion");
     gtaoPass.updateGtaoMaterial(aoParameters);
@@ -293,7 +319,7 @@ function setupPostProcessing(scene, camera, renderer) {
 
     const paramsBloom = {
         threshold: 1,
-        strength: 0.3,
+        strength: 0.2,
         radius: 1,
     };
     
@@ -305,6 +331,11 @@ function setupPostProcessing(scene, camera, renderer) {
     bloomFolder.add(paramsBloom, "threshold", 0.0, 1.0).onChange(function (value) { bloomPass.threshold = Number(value); });
     bloomFolder.add(paramsBloom, "strength", 0.0, 3.0).onChange(function (value) { bloomPass.strength = Number(value); });
     bloomFolder.add(paramsBloom, "radius", 0.0, 1.0).step(0.01).onChange(function (value) { bloomPass.radius = Number(value); });
+
+    lowerAOPass = () => {
+        aoParameters.samples = 8;
+        gtaoPass.updateGtaoMaterial(aoParameters);
+    }
     
     return composer;
 }
@@ -337,8 +368,8 @@ function setupLighting(scene) {
     dirLight.shadow.radius = 25;
     dirLight.shadow.blurSamples = 25;
     dirLight.shadow.bias = -.0001;
-    dirLight.shadow.mapSize.width = 4096; // Will need to change this to fit the whole map once it"s finished
-    dirLight.shadow.mapSize.height = 4096; // Will need to change this to fit the whole map once it"s finished
+    dirLight.shadow.mapSize.width = 4096;
+    dirLight.shadow.mapSize.height = 4096;
     dirLight.position.set(18, 40, 10);
     dirLight.target.position.set(-20, 0, -20);
     dirLight.shadow.camera.near = 0.2;       
@@ -399,32 +430,14 @@ function setupEnvironment(scene) {
     sceneGui.add(params, "start", 50, 250).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
     sceneGui.add(params, "end", 80, 350).onChange(function(value) { scene.fog = new THREE.Fog(params.fog, params.start, params.end); });
 
-    const props = ["props_limgrave.glb", "props_weeping.glb", "props_caelid.glb", "props_liurnia.glb"];
-    const legacyDungeons = ["legacy_dungeons.glb"];
-
     for (const tile of TILES) {
         loader.load(`./assets/${tile}.glb`, (gltf) => {
             scene.add(gltf.scene);
             setShadow(gltf.scene, false, true);
             modifyMaterials(gltf.scene, scene);
+            console.log(gltf.scene);
         });
     }
-
-    // for (const prop of props) {
-    //     loader.load(`./assets/${prop}`, (gltf) => {
-    //         scene.add(gltf.scene);
-    //         setShadow(gltf.scene, true, false);
-    //         modifyMaterials(gltf.scene, scene);
-    //     });
-    // }
-
-    // for (const dungeon of legacyDungeons) {
-    //     loader.load(`./assets/${dungeon}`, (gltf) => {
-    //         scene.add(gltf.scene);
-    //         setShadow(gltf.scene, true, false);
-    //         modifyMaterials(gltf.scene, scene);
-    //     });
-    // }
 }
 
 // Render the scene
@@ -477,51 +490,20 @@ function setupMaterials() {
         color: 0x46d3dd,
         metalness: 0.853,
         roughness: 0.11,
-        anisotropy: 0.0,
-        attenuationDistance: 150,
-        clearcoat: 0.7,
-        clearcoatRoughness: 1.0,
-        dispersion: 0.361,
-        ior: 1.0,
-        iridescence: 0.0,
-        sheen: 0.0,
-        thickness: 0.0,
-        transmission: 0.14,
-        reflectivity: 0.0,
+       
     };
 
     water.opacity = paramsWater.opacity;
     water.color = new THREE.Color(paramsWater.color);
     water.metalness = paramsWater.metalness;
     water.roughness = paramsWater.roughness;
-    // water.anisotropy = paramsWater.anisotropy;
-    // water.attenuationDistance = paramsWater.attenuationDistance;
-    // water.clearcoat = paramsWater.clearcoat;
-    // water.clearcoatRoughness = paramsWater.clearcoatRoughness;
-    // water.dispersion = paramsWater.dispersion;
-    // water.ior = paramsWater.ior;
-    // water.iridescence = paramsWater.iridescence;
-    // water.sheen = paramsWater.sheen;
-    // water.thickness = paramsWater.thickness;
-    // water.transmission = paramsWater.transmission;
-    // water.reflectivity = paramsWater.reflectivity;
     
     const waterFolder = gui.addFolder("water");
     waterFolder.add(paramsWater, "opacity", 0.0, 3.0).onChange(function (value) { water.opacity = Number(value); });
     waterFolder.addColor(paramsWater, "color").onChange(function(value) { water.color  = new THREE.Color(value); });
     waterFolder.add(paramsWater, "metalness", 0.0, 1.0).onChange(function (value) { water.metalness = Number(value); });
     waterFolder.add(paramsWater, "roughness", 0.0, 1.0).onChange(function (value) { water.roughness = Number(value); });
-    waterFolder.add(paramsWater, "anisotropy", 0.0, 5.0).onChange(function (value) { water.anisotropy = Number(value); });
-    waterFolder.add(paramsWater, "attenuationDistance", 0.0, 150.0).onChange(function (value) { water.attenuationDistance = Number(value); });
-    waterFolder.add(paramsWater, "clearcoat", 0.0, 1.0).onChange(function (value) { water.clearcoat = Number(value); });
-    waterFolder.add(paramsWater, "clearcoatRoughness", 0.0, 1.0).onChange(function (value) { water.clearcoatRoughness = Number(value); });
-    waterFolder.add(paramsWater, "dispersion", 0.0, 1.0).onChange(function (value) { water.dispersion = Number(value); });
-    waterFolder.add(paramsWater, "ior", 1.0, 2.333).onChange(function (value) { water.ior = Number(value); });
-    waterFolder.add(paramsWater, "iridescence", 0.0, 1.0).onChange(function (value) { water.iridescence = Number(value); });
-    waterFolder.add(paramsWater, "sheen", 0.0, 1.0).onChange(function (value) { water.sheen = Number(value); });
-    waterFolder.add(paramsWater, "thickness", 0.0, 100.0).onChange(function (value) { water.thickness = Number(value); });
-    waterFolder.add(paramsWater, "transmission", 0.0, 1.0).onChange(function (value) { water.transmission = Number(value); });
-    waterFolder.add(paramsWater, "reflectivity", 0.0, 1.0).onChange(function (value) { water.reflectivity = Number(value); });
+    waterFolder.close();
 
     minorErdtree.color = new THREE.Color(0xFFFEB6);
     minorErdtree.emissive = new THREE.Color(0xffa51d);
@@ -547,7 +529,7 @@ function setupInstancing(scene) {
                 for (let i = 0; i < transforms.length; i++) {
                     iMesh.setMatrixAt(i, transforms[i].matrixWorld);
                 }
-                
+                setShadow(iMesh, true, false);
                 scene.add(iMesh);
             });
         });
