@@ -75,7 +75,7 @@ export function createScene() {
     let loaded = false;
     setTimeout(() => {
         loaded = true;
-    }, 350);
+    }, 2000);
 
     const velocity = new THREE.Vector3();
     const desiredVelocity = new THREE.Vector3();
@@ -239,7 +239,6 @@ function createRenderer(scene, camera) {
     renderer.render(scene, camera);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.shadowMap.autoUpdate = true; //?
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.LinearToneMapping;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -436,6 +435,12 @@ function setupEnvironment(scene) {
             setShadow(gltf.scene, false, true);
             modifyMaterials(gltf.scene, scene);
             console.log(gltf.scene);
+            for (const obj of gltf.scene.children[0].children) {
+                if (obj.material.name === "Limgrave - Sand") {
+                    setShadow(obj, false, false);
+                    // obj.material.color = new THREE.Color(0x719D4E)
+                }
+            }
         });
     }
 }
@@ -507,11 +512,11 @@ function setupMaterials() {
 
     minorErdtree.color = new THREE.Color(0xFFFEB6);
     minorErdtree.emissive = new THREE.Color(0xffa51d);
-    minorErdtree.emissiveIntensity = 2;
+    minorErdtree.emissiveIntensity = 5;
 
-    fire.color = new THREE.Color(0xe76717);
-    fire.emissive = new THREE.Color(0xff9627);
-    fire.emissiveIntensity = 6;
+    fire.color = new THREE.Color(0x170a02);
+    fire.emissive = new THREE.Color(0xff813b);
+    fire.emissiveIntensity = 4;
 
     grace.color = new THREE.Color(0xfad57b);
     grace.emissive = new THREE.Color(0xe7b962);

@@ -8,6 +8,25 @@
     </head>
     <body>
         <canvas id="canvas"></canvas>
+        <div class="loading">
+
+        </div>
+        <div class="options">
+            <a href="https://github.com/honzaap/LandsBetween" target="_blank">
+                <img src="/icon/github.svg" alt="Github">
+            </a>
+            <div class="controls">
+                <div class="switch">
+                    <input type="radio" id="fps" name="controls" value="1">
+                    <label class="fps" for="fps">First-person</label>
+                    <input type="radio" id="orbit" name="controls" value="2" checked>
+                    <label class="orbit" for="orbit">Oribt Controls</label>
+                    <div class="bar">
+                        <div class="circle"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <script type="module" src="/main.js"></script>
     </body>
 </html>

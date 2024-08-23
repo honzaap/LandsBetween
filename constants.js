@@ -1,5 +1,5 @@
 export const TILES = [
-    "map2",
+    "map",
 ];
 
 export const INSTANCED = [
