@@ -11,9 +11,12 @@ A remake of The Lands Between from Elden Ring made into low-poly style
 
 
 ## 3rd party assets
-<a href="https://poly.pizza/m/P5imB1mBR3">Skeleton (modified)</a>
+<a href="https://poly.pizza/m/P5imB1mBR3">Skeleton </a>
 
-<a href="https://poly.pizza/m/WIOTISRjeX">Wyvern</a>
+<a href="https://poly.pizza/m/WIOTISRjeX">Wyvern </a>
 
-<a href="https://www.cgtrader.com/free-3d-models/animals/reptile/free-low-poly-fire-dragon">Dragon (modified)</a>
+<a href="https://www.cgtrader.com/free-3d-models/animals/reptile/free-low-poly-fire-dragon">Dragon </a>
 
+<a href="https://poly.pizza/m/dKexfKQOOl">Witch </a>
+
+<a href="https://poly.pizza/m/2LCcq8vhqJ3">Turtle </a>
