@@ -1,5 +1,5 @@
 export const TILES = [
-    "map",
+    "map2",
 ];
 
 export const INSTANCED = [
@@ -28,4 +28,3 @@ export const INSTANCED = [
     "tree_red_1", "tree_red_2", "tree_red_3", "tree_red_4", "tree_red_5",  
     "tree_yellow_1", "tree_yellow_2", "tree_yellow_3", "tree_yellow_4", "tree_yellow_5",  
 ];
-console.log(INSTANCED.length);

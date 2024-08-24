@@ -14,9 +14,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { INSTANCED, TILES } from "./constants";
 import Stats from "three/examples/jsm/libs/stats.module.js";
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { loadComplete, loadProgress } from "./main";
 
 // Global loaders
-const loader = new GLTFLoader();
+const manager = new THREE.LoadingManager();
+const loader = new GLTFLoader(manager);
 const draco = new DRACOLoader();
 draco.setDecoderPath( '/draco/' );
 draco.preload();
@@ -27,7 +29,8 @@ const textureLoader = new THREE.TextureLoader();
 // Global GUI
 const gui = new GUI();
 const stats = new Stats();
-document.body.appendChild(stats.dom);
+// document.body.appendChild(stats.dom);
+gui.hide();
 
 // Global textures
 const envmap = textureLoader.load("/assets/envmap.png"); 
@@ -43,10 +46,30 @@ const grace = new THREE.MeshStandardMaterial();
 const moveDirection = new THREE.Vector3();
 const raycaster = new THREE.Raycaster()
 
+let controls;
+let camera; 
+let isFpsControls = false;
+const keys = { up: false, down: false, left: false, right: false };
+
+let loaded = false;
+manager.onLoad = () => {
+    loaded = true;   
+    loadComplete();
+}
+manager.onProgress = (url, loaded, total) => {
+    loadProgress(loaded/total);
+}
+
+export function switchControls(value) {
+    if (value === "fps") setFpsControls();
+    else setOrbitControls();
+    isFpsControls = value === "fps";
+}
+
 export function createScene() {
     // Create scene
     const scene = new THREE.Scene();
-    const camera = createCamera();
+    camera = createCamera();
     const renderer = createRenderer(scene, camera);
 
     renderer.info.autoReset = false;
@@ -56,7 +79,7 @@ export function createScene() {
     setupEnvironment(scene);
     setupInstancing(scene);
 
-    const controls = createControls(camera, renderer);
+    controls = createControls(camera, renderer);
 
     const composer = setupPostProcessing(scene, camera, renderer);
 
@@ -72,10 +95,6 @@ export function createScene() {
 
     let frameTimes = 0;
     let frames = 0;
-    let loaded = false;
-    setTimeout(() => {
-        loaded = true;
-    }, 2000);
 
     const velocity = new THREE.Vector3();
     const desiredVelocity = new THREE.Vector3();
@@ -85,6 +104,7 @@ export function createScene() {
     function animate() {
         stats.begin();
         if(Date.now() >= timeTarget){
+            updateMovement();
             const delta = clock.getDelta();
 
             desiredVelocity.copy(moveDirection);
@@ -103,7 +123,6 @@ export function createScene() {
             controls.target.add(velocity);
             camera.position.add(velocity);
 
-            // renderer.render(scene, camera);
             composer.render();
 
             timeTarget += dt;
@@ -126,7 +145,6 @@ export function createScene() {
             }
         }
 
-        // console.log(renderer.info.render.calls);
         stats.end();
         renderer.info.reset()
         requestAnimationFrame(animate);
@@ -149,74 +167,109 @@ function createCamera() {
         65,
         window.innerWidth / window.innerHeight,
         0.1,
-        400,
+        350,
    );
 
     return camera;
 }
 
-// Create and configure camera and sword controls
 function createControls(camera, renderer) {
     const controls = new OrbitControls(camera, renderer.domElement);
-    camera.position.set(5.1, 22.1, 22.1);
-    controls.target.set(5, 22, 22);
+    camera.position.set(5, 22, 22);
     controls.update();
     
-    const params = {
-        enableDamping: true,
-        dampingFactor: 0.3,
-        minDistance: 0,
-        maxDistance: 0.01,
-        panSpeed: 1,
-        rotateSpeed: 1,
-    }
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.3;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 60;
+    controls.panSpeed = 1;
+    controls.rotateSpeed = 1;
 
+    return controls;
+}
+
+function setFpsControls() {
+    const forward = new THREE.Vector3();
+    forward.subVectors(camera.position, controls.target).normalize();
+    forward.multiplyScalar(0.1);
+    const target = new THREE.Vector3();
+    target.subVectors(camera.position, forward);
+    controls.target.set(target.x, target.y, target.z);
     controls.enablePan = false;
 
-    controls.enableDamping = params.enableDamping;
-    controls.dampingFactor = params.dampingFactor;
-    controls.minDistance = params.minDistance;
-    controls.maxDistance = params.maxDistance;
-    controls.panSpeed = params.panSpeed;
-    controls.rotateSpeed = params.rotateSpeed;
-
-    const controlsGui = gui.addFolder("Controls");
-    controlsGui.add(params, "enableDamping").onChange((value) => controls.enableDamping = value);
-    controlsGui.add(params, "dampingFactor", 0.0, 2).onChange((value) => controls.dampingFactor = value);
-    controlsGui.add(params, "minDistance", 0, 5).onChange((value) => controls.minDistance = value);
-    controlsGui.add(params, "maxDistance", 30, 250).onChange((value) => controls.maxDistance = value);
-    controlsGui.add(params, "panSpeed", 0.5, 5).onChange((value) => controls.panSpeed = value);
-    controlsGui.add(params, "rotateSpeed", 0.5, 5).onChange((value) => controls.rotateSpeed = value);
-    controlsGui.close();
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.3;
+    controls.minDistance = 0;
+    controls.maxDistance = 0.01;
+    controls.panSpeed = 1;
+    controls.rotateSpeed = 1;
 
     window.addEventListener("keydown", e => {
-        if (e.key === "w" || e.key === "ArrowUp") {
-            moveDirection.z = -1;
+        if (!isFpsControls) return;
+        const key = e.key.toLowerCase();
+
+        if (key === "w" || key === "arrowup") {
+            keys.up = true;
         }
-        else if (e.key === "s" || e.key === "ArrowDown") {
-            moveDirection.z = 1;
+        else if (key === "s" || key === "arrowdown") {
+            keys.down = true;
         }
-        else if (e.key === "a" || e.key === "ArrowLeft") {
-            moveDirection.x = -1;
+        else if (key === "a" || key === "arrowleft") {
+            keys.left = true;
         }
-        else if (e.key === "d" || e.key === "ArrowRight") {
-            moveDirection.x = 1;
+        else if (key === "d" || key === "arrowright") {
+            keys.right = true;
         }
     });
     window.addEventListener("keyup", e => {
-        if (e.key === "w" || e.key === "ArrowUp") {
-            moveDirection.z = 0;
+        if (!isFpsControls) return;
+        const key = e.key.toLowerCase();
+
+        if (key === "w" || key === "arrowup") {
+            keys.up = false;
         }
-        else if (e.key === "s" || e.key === "ArrowDown") {
-            moveDirection.z = 0;
+        else if (key === "s" || key === "arrowdown") {
+            keys.down = false;
         }
-        else if (e.key === "a" || e.key === "ArrowLeft") {
-            moveDirection.x = 0;
+        else if (key === "a" || key === "arrowleft") {
+            keys.left = false;
         }
-        else if (e.key === "d" || e.key === "ArrowRight") {
-            moveDirection.x = 0;
+        else if (key === "d" || key === "arrowright") {
+            keys.right = false;
         }
     });
+
+    return controls;
+}
+
+function updateMovement() {
+    if (!isFpsControls) return;
+
+    moveDirection.set(0, 0, 0);
+    moveDirection.z += keys.up ? -1 : 0;
+    moveDirection.z += keys.down ? 1 : 0;
+    moveDirection.x += keys.left ? -1 : 0;
+    moveDirection.x += keys.right ? 1 : 0;
+    moveDirection.normalize();
+}
+
+function setOrbitControls() {
+    const forward = new THREE.Vector3();
+    forward.subVectors(camera.position, controls.target).normalize();
+    forward.multiplyScalar(20);
+    const target = new THREE.Vector3();
+    target.subVectors(camera.position, forward);
+    controls.target.set(target.x, target.y, target.z);
+
+
+    controls.enablePan = true;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.3;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 60;
+    controls.panSpeed = 1;
+    controls.rotateSpeed = 1;
+
 
     return controls;
 }
@@ -248,7 +301,7 @@ function createRenderer(scene, camera) {
     return renderer;
 }
 
-// Set"s the renderers size to current window size
+// Sets the renderers size to current window size
 function resizeRenderer(renderer) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -268,10 +321,13 @@ function setupPostProcessing(scene, camera, renderer) {
 
     const gtaoPass = new GTAOPass(scene, camera, width, height);
     gtaoPass.output = GTAOPass.OUTPUT.Default;
-    composer.addPass(gtaoPass);
 
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    composer.addPass(bloomPass);
+
+    if (!mobileCheck()) {
+        composer.addPass(bloomPass);
+        composer.addPass(gtaoPass);
+    }
 
     const outputPass = new OutputPass();
     composer.addPass(outputPass);
@@ -372,14 +428,13 @@ function setupLighting(scene) {
     dirLight.position.set(18, 40, 10);
     dirLight.target.position.set(-20, 0, -20);
     dirLight.shadow.camera.near = 0.2;       
-    dirLight.shadow.camera.far = 65;
-    dirLight.shadow.camera.left = -42;
-    dirLight.shadow.camera.bottom = -31;
-    dirLight.shadow.camera.right = 31;
-    dirLight.shadow.camera.top = 49;
+    dirLight.shadow.camera.far = 120;
+    dirLight.shadow.camera.left = -50 * 2;
+    dirLight.shadow.camera.bottom = -40 * 2;
+    dirLight.shadow.camera.right = 40 * 2;
+    dirLight.shadow.camera.top = 60 * 2;
     dirLight.frustumCulled = false;
     scene.add(dirLight);
-    scene.add(new THREE.DirectionalLightHelper(dirLight));
 
     const dirLightGui = gui.addFolder("Directional Light");
     dirLightGui.close();
@@ -412,16 +467,16 @@ function setupLighting(scene) {
 // Create and setup anything environment-related
 function setupEnvironment(scene) {
     scene.background = new THREE.Color(0x50638e);
-    scene.fog = new THREE.Fog(0x97aaaf, 90, 140);
+    scene.fog = new THREE.Fog(0x50638e, 250, 350);
 
     const sceneGui = gui.addFolder("Scene");
     sceneGui.close();
 
     const params = {
         background: 0x50638e,
-        fog: 0xb0b0b0,
-        start: 90,
-        end: 140,
+        fog: 0x50638e,
+        start: 250,
+        end: 350,
     }
 
     sceneGui.addColor(params, "background").onChange(function(value) { scene.background  = new THREE.Color(value); });
@@ -434,11 +489,10 @@ function setupEnvironment(scene) {
             scene.add(gltf.scene);
             setShadow(gltf.scene, false, true);
             modifyMaterials(gltf.scene, scene);
-            console.log(gltf.scene);
             for (const obj of gltf.scene.children[0].children) {
-                if (obj.material.name === "Limgrave - Sand") {
+                if (obj.material.name === "Sand Global") {
                     setShadow(obj, false, false);
-                    // obj.material.color = new THREE.Color(0x719D4E)
+                    obj.material.color = new THREE.Color(0x719D4E);
                 }
             }
         });
@@ -553,35 +607,67 @@ function onDoubleClick(event, camera, scene, controls, renderer) {
     
     if (intersects.length > 0) {
         const targetPosition = intersects[0].point;
-        targetPosition.lerp(camera.position, 0.2);
     
         const direction = new THREE.Vector3();
         direction.subVectors(targetPosition, camera.position).normalize();
     
         const targetQuaternion = new THREE.Quaternion();
         targetQuaternion.setFromUnitVectors(camera.getWorldDirection(new THREE.Vector3()), direction);
-    
-        gsap.to(camera.quaternion, {
-            duration: 0.75,
-            x: targetQuaternion.x,
-            y: targetQuaternion.y,
-            z: targetQuaternion.z,
-            w: targetQuaternion.w,
-            ease: "power1.inOut",
-            onUpdate: function () {
-                camera.quaternion.normalize();
-            }
-        });
-    
-        gsap.to(controls.target, {
-            duration: 1.35,
-            x: targetPosition.x,
-            y: targetPosition.y,
-            z: targetPosition.z,
-            ease: "power1.inOut",
-            onUpdate: function () {
-                controls.update();
-            }
-        });
+
+        if (isFpsControls) {
+            targetPosition.lerp(camera.position, 0.2);
+            gsap.to(camera.quaternion, {
+                duration: 0.75,
+                x: targetQuaternion.x,
+                y: targetQuaternion.y,
+                z: targetQuaternion.z,
+                w: targetQuaternion.w,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                    camera.quaternion.normalize();
+                }
+            });
+        
+            gsap.to(controls.target, {
+                duration: 1.35,
+                x: targetPosition.x,
+                y: targetPosition.y,
+                z: targetPosition.z,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                    controls.update();
+                },
+            });
+        }
+        else {
+            const target = new THREE.Vector3();
+            target.copy(targetPosition);
+            direction.multiplyScalar(camera.position.distanceTo(target) / 7);
+            target.subVectors(target, direction);
+            gsap.to(camera.position, {  
+                duration: 1.35,
+                x: target.x,
+                y: target.y,
+                z: target.z,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                    controls.update();
+                }
+            });
+
+            gsap.to(controls.target, {
+                duration: 1.35,
+                x: targetPosition.x,
+                y: targetPosition.y,
+                z: targetPosition.z,
+                ease: "power1.inOut",
+                onUpdate: function () {
+                    controls.update();
+                },
+            });
+        }
+        
+           
+     
     }
 }

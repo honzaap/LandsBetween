@@ -7,12 +7,17 @@
 body {
     overflow: hidden;
     background-color: #50638e;
-    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+    font-family: Roboto;
 }
 
 canvas {
     width: 100vw;
     height: 100vh;
+    cursor: grab;
+
+    &:active {
+        cursor: grabbing;
+    }
 }
 
 .options {
@@ -52,6 +57,7 @@ canvas {
         cursor: pointer;
         user-select: none;
         padding: 4px 10px 0;
+        white-space: nowrap;
 
         &.fps {
             grid-area: a;
@@ -59,6 +65,10 @@ canvas {
 
         &.orbit {
             grid-area: c;
+        }
+
+        @media (max-width: 560px) {
+            font-size: 14px;
         }
     }
 
@@ -111,6 +121,44 @@ canvas {
 
         #orbit:checked + label + .bar .circle{
             left: 20px;
+        }
+    }
+}
+
+.loader {
+    position: fixed;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    inset: 0;
+    background-color: #fff;
+    z-index: 2;
+    transition: opacity 300ms ease;
+    transition-delay: 500ms;
+
+    &.hide {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .loading-bar {
+        position: relative;
+        width: 80vw;
+        max-width: 450px;
+        background-color: #a0a0a0;
+        height: 12px;
+        border-radius: 50px;
+        overflow: hidden;
+        margin-top: 5px;
+
+        .progress {
+            background-color: #D8AA34;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 0%;
         }
     }
 }
