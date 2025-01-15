@@ -20,7 +20,7 @@ import { loadComplete, loadProgress } from "./main";
 const manager = new THREE.LoadingManager();
 const loader = new GLTFLoader(manager);
 const draco = new DRACOLoader();
-draco.setDecoderPath( '/draco/' );
+draco.setDecoderPath( './draco/' );
 draco.preload();
 loader.setDRACOLoader(draco);
 
@@ -33,7 +33,7 @@ const stats = new Stats();
 gui.hide();
 
 // Global textures
-const envmap = textureLoader.load("/assets/envmap.png"); 
+const envmap = textureLoader.load("./assets/envmap.png"); 
 envmap.mapping = THREE.EquirectangularReflectionMapping;
 envmap.colorSpace = THREE.SRGBColorSpace;
 
@@ -579,8 +579,8 @@ function setupMaterials() {
 
 function setupInstancing(scene) {
     for (const instance_name of INSTANCED) {
-        loader.load(`/assets/instanced/${instance_name}.glb`, (instance) => {
-            loader.load(`/assets/instanced_data/${instance_name}.glb`, (data) => {
+        loader.load(`./assets/instanced/${instance_name}.glb`, (instance) => {
+            loader.load(`./assets/instanced_data/${instance_name}.glb`, (data) => {
                 const mesh = instance.scene.children[0];
                 const transforms = data.scene.children;
                 const iMesh = new THREE.InstancedMesh(mesh.geometry, mesh.material, transforms.length);
